@@ -1,7 +1,26 @@
+// === KONFIGURASI FIREBASE ===
+const firebaseConfig = {
+  apiKey: "AIzaSyCDNxKsJNeMIGi6rOb_jFeYPnfEPWHcAgo",
+  authDomain: "kfc-web-menu.firebaseapp.com",
+  databaseURL: "https://kfc-web-menu-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "kfc-web-menu",
+  storageBucket: "kfc-web-menu.firebasestorage.app",
+  messagingSenderId: "1008060632643",
+  appId: "1:1008060632643:web:e266309eeefde6ae1c0ef6",
+  measurementId: "G-YYRVBBP87H"
+};
+
+// === INISIALISASI FIREBASE (versi compat agar cocok dengan <script>) ===
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.database(app);
+console.log("Firebase connected:", db ? "✅ YES" : "❌ NO");
+
+
 document.addEventListener("DOMContentLoaded", () => {
   const menuItems = document.querySelectorAll(".button-row");
   const cartBtn = document.getElementById("cartBtn");
   const closeCartBtn = document.getElementById("closeCartBtn");
+  const checkoutBtn = document.getElementById("checkoutBtn");
   const cartPanel = document.getElementById("cartPanel");
   const cartItemsContainer = document.getElementById("cartItems");
   const totalPriceEl = document.getElementById("totalPrice");
@@ -28,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const countEl = row.querySelector(".count");
     const addBtn = row.querySelector(".add-btn");
     const parent = row.parentElement;
-    const menuName = parent.classList[0] ;
+    const menuName = parent.classList[0];
     let count = 0;
 
     plusBtn.addEventListener("click", () => {
@@ -76,22 +95,22 @@ document.addEventListener("DOMContentLoaded", () => {
       const div = document.createElement("div");
       div.classList.add("cart-item");
       div.innerHTML = `
-      <input type="checkbox" class="select-item" ${item.selected ? "checked" : ""}>
-      <img src="${item.img}" alt="${item.name}" class="cart-img">
-      <div class="cart-info">
-        <h3>Paket ${item.name.toUpperCase()}</h3>
-        <p>Rp ${item.price.toLocaleString("id-ID")}</p>
-        <div class="qty-control">
-          <button class="minus-cart">-</button>
-          <span class="qty">${item.qty}</span>
-          <button class="plus-cart">+</button>
+        <input type="checkbox" class="select-item" ${item.selected ? "checked" : ""}>
+        <img src="${item.img}" alt="${item.name}" class="cart-img">
+        <div class="cart-info">
+          <h3>Paket ${item.name.toUpperCase()}</h3>
+          <p>Rp ${item.price.toLocaleString("id-ID")}</p>
+          <div class="qty-control">
+            <button class="minus-cart">-</button>
+            <span class="qty">${item.qty}</span>
+            <button class="plus-cart">+</button>
+          </div>
         </div>
-      </div>
-      <div class="cart-actions">
-        <p>Rp ${(item.qty * item.price).toLocaleString("id-ID")}</p>
-        <button class="remove-item" title="Hapus item">✕</button>
-      </div>
-    `;
+        <div class="cart-actions">
+          <p>Rp ${(item.qty * item.price).toLocaleString("id-ID")}</p>
+          <button class="remove-item" title="Hapus item">✕</button>
+        </div>
+      `;
 
       div.querySelector(".select-item").addEventListener("change", (e) => {
         item.selected = e.target.checked;
@@ -106,7 +125,6 @@ document.addEventListener("DOMContentLoaded", () => {
       div.querySelector(".minus-cart").addEventListener("click", () => {
         if (item.qty > 1) {
           item.qty--;
-        } else {
         }
         updateCart();
       });
@@ -121,8 +139,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
     totalPriceEl.textContent = `Total: Rp ${total.toLocaleString("id-ID")}`;
   }
+
+  // === TOMBOL CHECKOUT ===
+  checkoutBtn.addEventListener("click", () => {
+    const selectedItems = cart.filter(item => item.selected);
+    if (selectedItems.length === 0) {
+      alert("Pilih menu yang ingin dipesan terlebih dahulu!");
+      return;
+    }
+
+    const tableNumber = prompt("Masukkan nomor meja Anda:");
+    if (!tableNumber) return;
+
+    const order = {
+      table: tableNumber,
+      items: selectedItems.map(i => ({
+        name: i.name,
+        qty: i.qty,
+        price: i.price,
+        img: i.img
+      })),
+      status: "pending",
+      timestamp: Date.now()
+    };
+
+    firebase.database().ref("orders").push(order)
+      .then(() => {
+        alert("✅ Pesanan berhasil dikirim ke dapur!");
+        cart = [];
+        updateCart();
+        cartPanel.classList.remove("active");
+      })
+      .catch(err => alert("Gagal mengirim pesanan: " + err.message));
+  });
 });
 
+// === LISTENER NOTIFIKASI PESANAN SIAP ===
 firebase.database().ref("orders").on("child_changed", snapshot => {
   const data = snapshot.val();
   if (data.status === "ready") {
